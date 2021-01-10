@@ -1,13 +1,6 @@
 from lxml import etree
 from numpy.linalg import norm
 
-'''
-
-with open('campaign.xml', 'r') as myFile:
-    tree = etree.parse(myFile)
-root = tree.getroot()
-'''
-
 '''# set up condition map
 cond_map = {}
 # fMs is the tag of the element storing the hazard values, idk what it stands for
@@ -263,94 +256,6 @@ class StarSystemReq:
 
 # desired theme
 # stable locs
-
-
-# ====================================== main ======================================
-
-if __name__ == '__main__':
-    import os
-    os.chdir('C:/Users/Mario/Desktop/systemfinder')
-    root = get_campaign_xml_root('campaign.xml')
-    system_list, unique_planet_types = get_system_list_from_xml(root)
-    #for i, s in enumerate(system_list):
-    #    print(i, s)
-
-    #print(sorted(list(unique_planet_types)))
-
-    p_reqs = {
-        PlanetReq(desired_resources={'volatiles_plentiful'}, desired_hazard=1.75, undesired_types={'US_gas_giantB', 'ice_giant', 'sen_gas_giant', 'gas_giant'}),
-        PlanetReq(desired_resources={'ruins_vast'})
-        }
-
-    sys_req = StarSystemReq(planet_reqs=p_reqs)
-
-    for s in system_list:
-        if sys_req.check(s):
-            print(s)
-            for p in s.planets:
-                print('\t', p, p.conditions)
-
-
-'''s = system_list[-4]
-print(s, s.id)
-for p in s.planets:
-    print('\t', p, p.conditions)
-p_reqs = {PlanetReq(desired_resources={'ore_sparse'})}
-sys_req = StarSystemReq(60000, 4, p_reqs)
-print(sys_req.check(s))'''
-
-
-# ORE:
-# sparse -1
-# moderate 0 
-# abundant 1
-# rich 2
-# ultrarich 3
-
-# FARMLAND:
-# poor -1
-# adequate 0
-# rich 1
-# bountiful 2
-
-# ORGANICS:
-# trace -1
-# common 0
-# abundant 1
-# plentiful 2
-
-# VOLATILES:
-# trace -1
-# diffuse 0
-# abundant 1
-# plentiful 2
-
-# RUINS:
-# scattered
-# widespread
-# extensive
-# vast
-
-
-
-#for c in unique_conditions:
-#    print(c)
-
-#for k,v in cond_map.items():
-#    print(f'{k}: {v}')
-
-#for planet in systems['219015'].planets:
-#    print(planet.name, planet.cond, planet.hazard)
-
-#for typ in unique_planet_types:
-#    print(typ)
-
-#for s in sorted(systems.values(), key=lambda s: len(s.planets), reverse=True)[:5]:
-#    print(s)
-
-
-
-
 
 '''x = []
 y = []
