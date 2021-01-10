@@ -1,8 +1,5 @@
 from lxml import etree
-import os
-import matplotlib.pyplot as plt
-import time
-import numpy as np
+from numpy.linalg import norm
 
 '''
 
@@ -74,7 +71,7 @@ class StarSystem:
             self.planets = planet_list
         else:
             self.planets = []
-        self.dist = np.linalg.norm(loc)
+        self.dist = norm(loc)
 
     def __repr__(self):
         return f'{self.name} ({len(self.planets)} planets {self.dist:0.0f} from center)'
@@ -179,47 +176,56 @@ def get_resource_levels(desired_resource):
         raise KeyError('Invalid resource string')
 
 class PlanetReq:
-    def __init__(self, desired_types=None, undesired_types=None, desired_resources=None, desired_hazard=None):
+    def __init__(self, desired_types=[], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, require_low_gravity=False, exclude_high_gravity=False):
         self.desired_types = desired_types
-        self.undesired_types = undesired_types
         self.desired_resources = desired_resources
-        if desired_resources is not None:
+        if desired_resources:
             self.desired_resources_levels = [get_resource_levels(desired_resource) for desired_resource in desired_resources]
         self.desired_hazard = desired_hazard
+        self.exclusive_type_mode = exclusive_type_mode
+        self.require_low_gravity = require_low_gravity
+        self.exclude_high_gravity = exclude_high_gravity
 
     def check(self, planet):
-        if self.desired_types is not None and planet.type not in self.desired_types:
-            return False
-        if self.undesired_types is not None and planet.type in self.undesired_types:
-            return False
+        if self.desired_types:
+            if not self.exclusive_type_mode and planet.type not in self.desired_types:
+                return False
+            elif self.exclusive_type_mode and planet.type in self.desired_types:
+                return False
         if self.desired_hazard is not None and planet.hazard > self.desired_hazard:
             return False
-        if self.desired_resources is not None:
+        if self.require_low_gravity and 'low_gravity' not in planet.conditions:
+            return False
+        if self.exclude_high_gravity and 'high_gravity' in planet.conditions:
+            return False
+        if self.desired_resources:
             if not all([any([level in planet.conditions for level in resource_levels]) for resource_levels in self.desired_resources_levels]):
                 return False
         return True
-    
-    def get_updated(self, desired_types=None, undesired_types=None, desired_resources=None, desired_hazard=None):
-        if desired_types is not None:
-            self.desired_types = desired_types
-        if desired_resources is not None:
-            self.desired_resources = desired_resources
-            self.desired_resources_levels = [get_resource_levels(desired_resource) for desired_resource in desired_resources]
-        if desired_hazard is not None:
-            self.desired_hazard = desired_hazard
-        return self
-
-    def get_types(self):
-        return self.desired_types
-    
-    def get_resources(self):
-        return self.desired_resources
-
-    def get_hazard(self):
-        return self.desired_hazard
 
     def __repr__(self):
-        return f'<planet req: {self.desired_types} with {self.desired_resources} and hazard below {self.desired_hazard*100:0.0f}%>'
+        repr_str = ''
+        if self.desired_types and self.exclusive_type_mode:
+            repr_str += 'not '
+        repr_str += f'{"/".join(self.desired_types)}'
+        if self.desired_resources:
+            if repr_str != '':
+                repr_str += ', '
+            repr_str += f'at least {"/".join(self.desired_resources)}'
+        if self.desired_hazard:
+            if repr_str != '':
+                repr_str += ', '
+            repr_str += f'hazard below {self.desired_hazard*100:0.0f}%'
+        if self.require_low_gravity:
+            if repr_str != '':
+                repr_str += ', '
+            repr_str += 'lo-grav'
+        if self.exclude_high_gravity:
+            if repr_str != '':
+                repr_str += ', '
+            repr_str += 'non hi-grav'
+        repr_str = '- planet: ' + repr_str
+        return repr_str
 
 class StarSystemReq:
     def __init__(self, max_distance=None, min_planet_num=None, planet_reqs=None):
@@ -262,6 +268,7 @@ class StarSystemReq:
 # ====================================== main ======================================
 
 if __name__ == '__main__':
+    import os
     os.chdir('C:/Users/Mario/Desktop/systemfinder')
     root = get_campaign_xml_root('campaign.xml')
     system_list, unique_planet_types = get_system_list_from_xml(root)
