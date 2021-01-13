@@ -1,5 +1,6 @@
 from lxml import etree
 from numpy.linalg import norm
+from time import time
 
 '''# set up condition map
 cond_map = {}
@@ -18,6 +19,7 @@ def get_campaign_xml_root(path):
     return root
 
 cond_map = {
+    'decivilized': '0.25',
     'hot': '0.25', 
     'habitable': '-0.25', 
     'water_surface': '0.25', 
@@ -37,7 +39,21 @@ cond_map = {
     'extreme_tectonic_activity': '0.5', 
     'pollution': '0.25', 
     'inimical_biosphere': '0.25', 
-    'mild_climate': '-0.25'
+    'mild_climate': '-0.25',
+    'US_magnetic': '0.5',
+    'US_artificial': '0.0',
+    'US_storm': '0.25',
+    #'US_special_no_pick': 'nan', 
+    'US_shrooms': '0.0', 
+    'US_mind': '0.0', 
+    'US_bedrock': '-0.5', 
+    #'US_tunnels': 'nan', 
+    'US_virus': '0.5', 
+    'US_religious': '0.0', 
+    'US_base': '0.0', 
+    'US_elevator': '0.0', 
+    'US_floating': '-0.5', 
+    'US_crash': '-0.5'
     }
 
 class Planet:
@@ -67,13 +83,16 @@ class StarSystem:
         self.dist = norm(loc)
 
     def __repr__(self):
-        return f'{self.name} ({len(self.planets)} planets {self.dist:0.0f} from center)'
+        return f'{self.name} ({len(self.planets)} planets {self.dist:0.1f}ly from center)'
 
     def add_planet(self, planet):
         self.planets.append(planet)
     
     def add_star(self, star):
         self.stars.append(star)
+
+    def get_planet_num(self):
+        return len(self.planets)
 
 def get_initial_id_system_map(campaign_xml_root):
     # read the system id's listed at top level in the xml
@@ -83,12 +102,18 @@ def get_initial_id_system_map(campaign_xml_root):
     # use search string which includes all of the system id's concatenated together
     # to search for each of the tag elements which define the contents of the listed systems
     search_str = '|' + '|'.join(system_ids) + '|'
-    expr = f".//*[contains('{search_str}', concat('|', @z, '|'))]"
-    system_elements = campaign_xml_root.xpath(expr)
+    expr = f"//*[contains('{search_str}', concat('|', @z, '|'))]"
+    hyperspace_element = campaign_xml_root.find('starSystems')
+    print('searching for systems...')
+    start_time = time()
+    system_elements = hyperspace_element.xpath(expr)
+    print(f'found {len(system_elements)} systems, took {time() - start_time:0.2f} seconds')
 
     # create dict mapping system id (int) to each system (StarSystem)
     id_system_map = {}
-
+    max_system_dist = 0
+    print('creating id:system map...')
+    start_time = time()
     for element in system_elements:
         name = element.get('dN')
 
@@ -96,21 +121,32 @@ def get_initial_id_system_map(campaign_xml_root):
         # if <l> is empty, then it references the tag which stores the loc with its ref attrib
         location_tag = element.find('l')
         if location_tag.text:
-            loc = location_tag.text.split('|')
+            loc_px = location_tag.text.split('|')
         else:
-            loc = campaign_xml_root.find(f".//*[@z='{location_tag.get('ref')}']").text.split('|')
+            loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_tag.get('ref')}']").text.split('|')
 
         sys_id = element.get('z')
-        id_system_map[sys_id] = StarSystem(sys_id, name, loc)
-
-    return id_system_map
+        loc_ly = [float(coord)/2000 for coord in loc_px]
+        max_system_dist = max(max_system_dist, norm(loc_ly))
+        id_system_map[sys_id] = StarSystem(sys_id, name, loc_ly)
+    print(f'created map, took {time() - start_time:0.2f} seconds')
+    return id_system_map, max_system_dist
 
 def assign_planets_to_systems(campaign_xml_root, id_system_map):
     # create set to check all of the unique planet types along the way
     unique_types = set()
 
     # find all <Plnt> tags with an id 'z' attrib (the ones with definitions)
-    planet_elements = campaign_xml_root.xpath('.//Plnt[@z]')
+
+    hyperspace_element = campaign_xml_root.find('starSystems')
+    print('searching for planets...')
+    start_time = time()
+    planet_elements = hyperspace_element.xpath('//Plnt[@z]')
+    print(f'found {len(planet_elements)} planets, took {time() - start_time:0.2f} seconds')
+
+    max_system_planet_num = 0
+    print(f'assigning {len(planet_elements)} planets to {len(id_system_map)} systems...')
+    start_time = time()
     for el in planet_elements:
         # parent system id
         system_id = el.find('cL').get('ref')
@@ -133,17 +169,20 @@ def assign_planets_to_systems(campaign_xml_root, id_system_map):
                 
                 new_planet = Planet(id, name, type, cond)
                 id_system_map[system_id].add_planet(new_planet)
+                max_system_planet_num = max(max_system_planet_num, id_system_map[system_id].get_planet_num())
+
         elif tag == 'star':
             id_system_map[system_id].add_star(el.find('type').text)
-    return id_system_map, unique_types
+    print(f'assigned, took {time() - start_time:0.2f} seconds')
+    return id_system_map, unique_types, max_system_planet_num
 
 #def assign_stable_locations_to_systems(campaign_xml_root, id_system_map):
 
 
 def get_system_list_from_xml(campaign_xml_root):
-    id_system_map = get_initial_id_system_map(campaign_xml_root)
-    id_system_map, unique_planet_types = assign_planets_to_systems(campaign_xml_root, id_system_map)
-    return list(id_system_map.values()), unique_planet_types
+    id_system_map, max_system_dist = get_initial_id_system_map(campaign_xml_root)
+    id_system_map, unique_planet_types, max_system_planet_num = assign_planets_to_systems(campaign_xml_root, id_system_map)
+    return list(id_system_map.values()), unique_planet_types, max_system_dist, max_system_planet_num
 
 ore_levels = ['ore_sparse', 'ore_moderate', 'ore_abundant', 'ore_rich', 'ore_ultrarich']
 rare_ore_levels = ['rare_ore_sparse', 'rare_ore_moderate', 'rare_ore_abundant', 'rare_ore_rich', 'rare_ore_ultrarich']
