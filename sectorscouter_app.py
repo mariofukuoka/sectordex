@@ -1,14 +1,15 @@
 import PySimpleGUI as sg
 import sectorscouter as ss
+from time import sleep
 
 # All the stuff inside your window.
 sg.theme('BrownBlue')
 # ================== save import ====================
 
 save_import_frame_data = [
-    [sg.Input(size=(133, 5), k='k_path'), sg.FileBrowse(), sg.Button('Import selected', k='k_import')] 
+    [sg.Input(size=(133, 5), k='k_path'), sg.FileBrowse(), sg.Button('Import selected', k='k_import')]
+    #[sg.Input(size=(146, 5), k='k_import_path', readonly=True, enable_events=True), sg.FileBrowse(button_text='Import save')]
     ]
-
 save_import_frame = sg.Frame('Import save (campaign.xml file)', save_import_frame_data)
 
 # =================== system reqs ======================
@@ -120,13 +121,12 @@ planet_req_frame = sg.Frame('Planet requirements', planet_req_frame_data)
 
 system_list_frame_data = [
     [sg.Listbox(values=[], size=(70,10), enable_events=True, k='k_systems')]
-    #[sg.Output(size=(70,15))]
     ]
 
 system_list_frame = sg.Frame('Search results', system_list_frame_data,)
 
 system_details_frame_data = [
-    [sg.Column([[sg.Text(size=(50,100), k='k_details')]], size=(492,540), scrollable=True)]
+    [sg.Column([[sg.Text(size=(50,100), k='k_details')]], size=(492,540), scrollable=True)] #540
     ]
 
 system_details_frame = sg.Frame('System Details', system_details_frame_data)
@@ -135,6 +135,7 @@ system_details_frame = sg.Frame('System Details', system_details_frame_data)
 results_col = sg.Column([
     [system_list_frame],
     [system_details_frame]
+    #[sg.Frame('Status', [[sg.Output(size=(69, 5))]])]
     ])
 
 # ============== layout ===========================
@@ -155,29 +156,38 @@ system_list = []
 unique_planet_list = []
 selected_last = None
 
+def make_import_progress_popup():
+    layout = [
+        [sg.Frame('Status', [[sg.Output(size=(40,9))]])],
+        [sg.T('', k='k_import_complete')]
+    ]
+    return sg.Window('Import in progress', layout, finalize=True)
 
 # Create the Window
-window = sg.Window('Sector scouter', layout)
+window = sg.Window('Sector scouter', layout, finalize=True)
+import_progress_popup = None
 # Event Loop to process "events" and get the "values" of the inputs
 while True:
-    event, values = window.read()
+    win, event, values = sg.read_all_windows()
     if event == sg.WIN_CLOSED:
         break
+    #elif event == 'k_import_path' and (path := window['k_import_path'].get()):
     elif event == 'k_import':
-        print('importing')
         path = window['k_path'].get()
+        import_progress_popup = make_import_progress_popup()
         try:
             root = ss.get_campaign_xml_root(path)
-            print('root imported')
             system_list, unique_planet_list, max_system_dist, max_system_planet_num = ss.get_system_list_from_xml(root)
-            window['k_types'].Update(values=sorted(list(unique_planet_list)))
+            window['k_types'].Update(values=sorted(list(unique_planet_list), key=lambda planet_type: planet_type.removeprefix('US_')))
             window['k_dist'].Update(range=(0, max_system_dist))
             window['k_dist'].Update(value=max_system_dist)
             window['k_planet_num'].Update(range=(0, max_system_planet_num))
             window['k_planet_num'].Update(value=0)
-            sg.popup('Save data imported')
+            print('Import complete')
+            sleep(0.5)
         except FileNotFoundError:
             sg.popup('Invalid path')
+        import_progress_popup.close()
     
     elif event == 'k_require_low_grav':
         if values['k_require_low_grav']:
@@ -274,7 +284,6 @@ while True:
         else:
             detail_string = ''
         window['k_details'].Update(value=detail_string)
-
 
 
 window.close()

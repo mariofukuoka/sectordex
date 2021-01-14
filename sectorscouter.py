@@ -1,10 +1,12 @@
 from lxml import etree
 from numpy.linalg import norm
 from time import time
+import sys
+from os import path
 
 '''# set up condition map
 cond_map = {}
-# fMs is the tag of the element storing the hazard values, idk what it stands for
+# fMs is the tag of the node storing the hazard values, idk what it stands for
 for fMs in root.findall(f".//hazard/fMs"):
     cond_id = '_'.join(fMs.get('s').split('_')[:-1])
     cond_hazard_val = fMs.get('v')
@@ -13,9 +15,10 @@ del cond_map['haz']
 '''
 
 def get_campaign_xml_root(path):
-    with open(path, 'r') as myFile:
-        tree = etree.parse(myFile)
+    with open(path, 'r') as xml_file:
+        tree = etree.parse(xml_file)
     root = tree.getroot()
+    print(f'Loaded XML file structure from {xml_file.name.split("/")[-1]}')
     return root
 
 cond_map = {
@@ -61,7 +64,7 @@ class Planet:
         self.id = id
         self.name = name
         self.type = type
-        self.conditions = set(cond)
+        self.conditions = cond
         self.hazard = 1 + sum([float(cond_map[c]) for c in cond if c in cond_map])
 
     def __repr__(self):
@@ -99,37 +102,39 @@ def get_initial_id_system_map(campaign_xml_root):
     system_index = campaign_xml_root.find('starSystems')
     system_ids = [system.get('ref') for system in system_index]
 
+    hyperspace_node = campaign_xml_root.find('starSystems')
+
     # use search string which includes all of the system id's concatenated together
-    # to search for each of the tag elements which define the contents of the listed systems
-    search_str = '|' + '|'.join(system_ids) + '|'
-    expr = f"//*[contains('{search_str}', concat('|', @z, '|'))]"
-    hyperspace_element = campaign_xml_root.find('starSystems')
-    print('searching for systems...')
-    start_time = time()
-    system_elements = hyperspace_element.xpath(expr)
-    print(f'found {len(system_elements)} systems, took {time() - start_time:0.2f} seconds')
+    # to search for each of the tag nodes which define the contents of the listed systems
+    id_search_str = '|' + '|'.join(system_ids) + '|'
+    system_tags = ['s', 'Sstm', 'cL', 't']
+    expr = '|'.join([f"//{system_tag}[contains('{id_search_str}', concat('|', @z, '|'))]" for system_tag in system_tags])
+    
+
+    system_nodes = hyperspace_node.xpath(expr)
+    print(f'Found {len(system_nodes)} systems')
 
     # create dict mapping system id (int) to each system (StarSystem)
     id_system_map = {}
     max_system_dist = 0
-    print('creating id:system map...')
-    start_time = time()
-    for element in system_elements:
-        name = element.get('dN')
+    iter_count, total_count = 0, len(system_nodes)
+
+    for system_node in system_nodes:
+        name = system_node.get('dN')
 
         # read location from the <l> tag
         # if <l> is empty, then it references the tag which stores the loc with its ref attrib
-        location_tag = element.find('l')
-        if location_tag.text:
-            loc_px = location_tag.text.split('|')
+        location_node = system_node.find('l')
+        if location_node.text:
+            loc_px = location_node.text.split('|')
         else:
-            loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_tag.get('ref')}']").text.split('|')
+            loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_node.get('ref')}']").text.split('|')
 
-        sys_id = element.get('z')
+        sys_id = system_node.get('z')
         loc_ly = [float(coord)/2000 for coord in loc_px]
         max_system_dist = max(max_system_dist, norm(loc_ly))
         id_system_map[sys_id] = StarSystem(sys_id, name, loc_ly)
-    print(f'created map, took {time() - start_time:0.2f} seconds')
+    print(f"Mapped ID's to systems")
     return id_system_map, max_system_dist
 
 def assign_planets_to_systems(campaign_xml_root, id_system_map):
@@ -137,43 +142,42 @@ def assign_planets_to_systems(campaign_xml_root, id_system_map):
     unique_types = set()
 
     # find all <Plnt> tags with an id 'z' attrib (the ones with definitions)
-
-    hyperspace_element = campaign_xml_root.find('starSystems')
-    print('searching for planets...')
-    start_time = time()
-    planet_elements = hyperspace_element.xpath('//Plnt[@z]')
-    print(f'found {len(planet_elements)} planets, took {time() - start_time:0.2f} seconds')
+    hyperspace_node = campaign_xml_root.find('starSystems')
+    planet_nodes = hyperspace_node.xpath('//Plnt[@z]')
+    print(f'Found {len(planet_nodes)} planets')
 
     max_system_planet_num = 0
-    print(f'assigning {len(planet_elements)} planets to {len(id_system_map)} systems...')
-    start_time = time()
-    for el in planet_elements:
-        # parent system id
-        system_id = el.find('cL').get('ref')
 
-        # tag showing if it's a planet or star
-        tag = el.find('tags').find('st').text
-        if tag == 'planet':
-            id = el.get('z')
-            market = el.find('market')
-            type = el.find('type').text
-            unique_types.add(type)
-            if market:
-                name = market.find('name').text
-                # if it's uninhabited, it stores the planet conditions in tags inside a <cond> tag
-                if cond_node := market.find('cond'):
-                    cond = {node.text for node in cond_node}
-                # otherwise it stores conditions in the 'i' attrib of tags inside a <conditions> tag
-                else:
-                    cond = {node.get('i') for node in market.find('conditions')}
-                
-                new_planet = Planet(id, name, type, cond)
-                id_system_map[system_id].add_planet(new_planet)
-                max_system_planet_num = max(max_system_planet_num, id_system_map[system_id].get_planet_num())
+    try:
+        for planet_node in planet_nodes:
+            system_id = planet_node.find('cL').get('ref')
 
-        elif tag == 'star':
-            id_system_map[system_id].add_star(el.find('type').text)
-    print(f'assigned, took {time() - start_time:0.2f} seconds')
+            # tag showing if it's a planet or star
+            tag = planet_node.find('tags').find('st').text
+            if tag == 'planet':
+                id = planet_node.get('z')
+                market_node = planet_node.find('market')
+                type = planet_node.find('type').text
+                unique_types.add(type)
+                if market_node is not None and (name_node := market_node.find('name')) is not None:
+                    name = name_node.text
+                    # if it's uninhabited, it stores the planet conditions in tags inside a <cond> tag
+                    if (cond_node := market_node.find('cond')) is not None:
+                        cond = {node.text for node in cond_node}
+                    # otherwise it stores conditions in the 'i' attrib of tags inside a <conditions> tag
+                    else:
+                        cond = {node.get('i') for node in market_node.find('conditions')}
+
+                    new_planet = Planet(id, name, type, cond)
+                    id_system_map[system_id].add_planet(new_planet)
+                    max_system_planet_num = max(max_system_planet_num, id_system_map[system_id].get_planet_num())
+
+            elif tag == 'star':
+                id_system_map[system_id].add_star(planet_node.find('type').text)
+    except KeyError as e:
+        key = int(str(e).strip("'"))
+        print(f'ERROR: system z="{key}" not parsed from XML')
+    print(f'Assigned {len(planet_nodes)} planets to {len(id_system_map)} systems')
     return id_system_map, unique_types, max_system_planet_num
 
 #def assign_stable_locations_to_systems(campaign_xml_root, id_system_map):
