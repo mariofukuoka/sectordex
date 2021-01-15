@@ -1,27 +1,15 @@
 from lxml import etree
 from numpy.linalg import norm
-from time import time
-import sys
-from os import path
+#from time import time
 
-'''# set up condition map
-cond_map = {}
-# fMs is the tag of the node storing the hazard values, idk what it stands for
-for fMs in root.findall(f".//hazard/fMs"):
-    cond_id = '_'.join(fMs.get('s').split('_')[:-1])
-    cond_hazard_val = fMs.get('v')
-    cond_map[cond_id] = cond_hazard_val
-del cond_map['haz']
-'''
+ORE_LEVELS = ['ore_sparse', 'ore_moderate', 'ore_abundant', 'ore_rich', 'ore_ultrarich']
+RARE_ORE_LEVELS = ['rare_ore_sparse', 'rare_ore_moderate', 'rare_ore_abundant', 'rare_ore_rich', 'rare_ore_ultrarich']
+FARMLAND_LEVELS = ['farmland_poor', 'farmland_adequate', 'farmland_rich', 'farmland_bountiful']
+ORGANICS_LEVELS = ['organics_trace', 'organics_common', 'organics_abundant', 'organics_plentiful']
+VOLATILES_LEVELS = ['volatiles_trace', 'volatiles_diffuse', 'volatiles_abundant', 'volatiles_plentiful']
+RUINS_LEVELS = ['ruins_scattered', 'ruins_widespread', 'ruins_extensive', 'ruins_vast']
 
-def get_campaign_xml_root(path):
-    with open(path, 'r') as xml_file:
-        tree = etree.parse(xml_file)
-    root = tree.getroot()
-    print(f'Loaded XML file structure from {xml_file.name.split("/")[-1]}')
-    return root
-
-cond_map = {
+COND_MAP = {
     'decivilized': '0.25',
     'hot': '0.25', 
     'habitable': '-0.25', 
@@ -59,16 +47,18 @@ cond_map = {
     'US_crash': '-0.5'
     }
 
+
 class Planet:
     def __init__(self, id, name, type, cond):
         self.id = id
         self.name = name
         self.type = type
         self.conditions = cond
-        self.hazard = 1 + sum([float(cond_map[c]) for c in cond if c in cond_map])
+        self.hazard = 1 + sum([float(COND_MAP[c]) for c in cond if c in COND_MAP])
 
     def __repr__(self):
         return f'{self.name} ({self.hazard*100:0.0f}% {self.type})'
+
 
 class StarSystem:
     def __init__(self, id, name, loc, star_list=None, planet_list=None):
@@ -84,6 +74,7 @@ class StarSystem:
         else:
             self.planets = []
         self.dist = norm(loc)
+        self.is_claimed = False
 
     def __repr__(self):
         return f'{self.name} ({len(self.planets)} planets {self.dist:0.1f}ly from center)'
@@ -97,126 +88,138 @@ class StarSystem:
     def get_planet_num(self):
         return len(self.planets)
 
-def get_initial_id_system_map(campaign_xml_root):
-    # read the system id's listed at top level in the xml
-    system_index = campaign_xml_root.find('starSystems')
-    system_ids = [system.get('ref') for system in system_index]
-
-    hyperspace_node = campaign_xml_root.find('starSystems')
-
-    # use search string which includes all of the system id's concatenated together
-    # to search for each of the tag nodes which define the contents of the listed systems
-    id_search_str = '|' + '|'.join(system_ids) + '|'
-    system_tags = ['s', 'Sstm', 'cL', 't']
-    expr = '|'.join([f"//{system_tag}[contains('{id_search_str}', concat('|', @z, '|'))]" for system_tag in system_tags])
-    
-
-    system_nodes = hyperspace_node.xpath(expr)
-    print(f'Found {len(system_nodes)} systems')
-
-    # create dict mapping system id (int) to each system (StarSystem)
-    id_system_map = {}
-    max_system_dist = 0
-    iter_count, total_count = 0, len(system_nodes)
-
-    for system_node in system_nodes:
-        name = system_node.get('dN')
-
-        # read location from the <l> tag
-        # if <l> is empty, then it references the tag which stores the loc with its ref attrib
-        location_node = system_node.find('l')
-        if location_node.text:
-            loc_px = location_node.text.split('|')
-        else:
-            loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_node.get('ref')}']").text.split('|')
-
-        sys_id = system_node.get('z')
-        loc_ly = [float(coord)/2000 for coord in loc_px]
-        max_system_dist = max(max_system_dist, norm(loc_ly))
-        id_system_map[sys_id] = StarSystem(sys_id, name, loc_ly)
-    print(f"Mapped ID's to systems")
-    return id_system_map, max_system_dist
-
-def assign_planets_to_systems(campaign_xml_root, id_system_map):
-    # create set to check all of the unique planet types along the way
-    unique_types = set()
-
-    # find all <Plnt> tags with an id 'z' attrib (the ones with definitions)
-    hyperspace_node = campaign_xml_root.find('starSystems')
-    planet_nodes = hyperspace_node.xpath('//Plnt[@z]')
-    print(f'Found {len(planet_nodes)} planets')
-
-    max_system_planet_num = 0
-
-    try:
-        for planet_node in planet_nodes:
-            system_id = planet_node.find('cL').get('ref')
-
-            # tag showing if it's a planet or star
-            tag = planet_node.find('tags').find('st').text
-            if tag == 'planet':
-                id = planet_node.get('z')
-                market_node = planet_node.find('market')
-                type = planet_node.find('type').text
-                unique_types.add(type)
-                if market_node is not None and (name_node := market_node.find('name')) is not None:
-                    name = name_node.text
-                    # if it's uninhabited, it stores the planet conditions in tags inside a <cond> tag
-                    if (cond_node := market_node.find('cond')) is not None:
-                        cond = {node.text for node in cond_node}
-                    # otherwise it stores conditions in the 'i' attrib of tags inside a <conditions> tag
-                    else:
-                        cond = {node.get('i') for node in market_node.find('conditions')}
-
-                    new_planet = Planet(id, name, type, cond)
-                    id_system_map[system_id].add_planet(new_planet)
-                    max_system_planet_num = max(max_system_planet_num, id_system_map[system_id].get_planet_num())
-
-            elif tag == 'star':
-                id_system_map[system_id].add_star(planet_node.find('type').text)
-    except KeyError as e:
-        key = int(str(e).strip("'"))
-        print(f'ERROR: system z="{key}" not parsed from XML')
-    print(f'Assigned {len(planet_nodes)} planets to {len(id_system_map)} systems')
-    return id_system_map, unique_types, max_system_planet_num
-
-#def assign_stable_locations_to_systems(campaign_xml_root, id_system_map):
+    def set_claimed(self):
+        self.is_claimed = True
 
 
-def get_system_list_from_xml(campaign_xml_root):
-    id_system_map, max_system_dist = get_initial_id_system_map(campaign_xml_root)
-    id_system_map, unique_planet_types, max_system_planet_num = assign_planets_to_systems(campaign_xml_root, id_system_map)
-    return list(id_system_map.values()), unique_planet_types, max_system_dist, max_system_planet_num
+class Sector:
+    def __init__(self):
+        self.systems = None
+        self.planet_types = None
+        self.star_types = None
+        self.max_system_dist = None
+        self.max_system_planet = None
 
-ore_levels = ['ore_sparse', 'ore_moderate', 'ore_abundant', 'ore_rich', 'ore_ultrarich']
-rare_ore_levels = ['rare_ore_sparse', 'rare_ore_moderate', 'rare_ore_abundant', 'rare_ore_rich', 'rare_ore_ultrarich']
-farmland_levels = ['farmland_poor', 'farmland_adequate', 'farmland_rich', 'farmland_bountiful']
-organics_levels = ['organics_trace', 'organics_common', 'organics_abundant', 'organics_plentiful']
-volatiles_levels = ['volatiles_trace', 'volatiles_diffuse', 'volatiles_abundant', 'volatiles_plentiful']
-ruins_levels = ['ruins_scattered', 'ruins_widespread', 'ruins_extensive', 'ruins_vast']
+    def load_from_xml(self, path):
+        # get systems and planets
+        campaign_xml_root = self.get_xml_root(path)
+        id_system_map = self.get_initial_id_system_map(campaign_xml_root)
+        id_system_map = self.assign_planets_to_systems(campaign_xml_root, id_system_map)
+        systems = list(id_system_map.values())
 
-def get_resource_levels(desired_resource):
-    if desired_resource in ore_levels:
-        return ore_levels[ore_levels.index(desired_resource):]
-    elif desired_resource in rare_ore_levels:
-        return rare_ore_levels[rare_ore_levels.index(desired_resource):]
-    elif desired_resource in farmland_levels:
-        return farmland_levels[farmland_levels.index(desired_resource):]
-    elif desired_resource in organics_levels:
-        return organics_levels[organics_levels.index(desired_resource):]
-    elif desired_resource in volatiles_levels:
-        return volatiles_levels[volatiles_levels.index(desired_resource):]
-    elif desired_resource in ruins_levels:
-        return ruins_levels[ruins_levels.index(desired_resource):]
-    else:
-        raise KeyError('Invalid resource string')
+        # calculate stats
+        planet_types = set()
+        star_types = set()
+        max_system_dist = 0
+        max_system_planet_num = 0
+        for system in systems:
+            max_system_dist = max(max_system_dist, system.dist)
+            max_system_planet_num = max(max_system_planet_num, system.get_planet_num())
+            for planet in system.planets:
+                planet_types.add(planet.type)
+            for star in system.stars:
+                star_types.add(star)
+
+        self.systems = systems
+        self.planet_types = planet_types
+        self.star_types = star_types
+        self.max_system_dist = max_system_dist
+        self.max_system_planet_num = max_system_planet_num
+
+    def get_xml_root(self, path):
+        with open(path, 'r') as xml_file:
+            tree = etree.parse(xml_file)
+        root = tree.getroot()
+        print(f'Loaded XML file structure from {xml_file.name.split("/")[-1]}')
+        return root
+
+    def get_initial_id_system_map(self, campaign_xml_root):
+        # read the system id's listed at top level in the xml
+        system_index = campaign_xml_root.find('starSystems')
+        system_ids = [system.get('ref') for system in system_index]
+
+        hyperspace_node = campaign_xml_root.find('starSystems')
+
+        # use search string which includes all of the system id's concatenated together
+        # to search for each of the tag nodes which define the contents of the listed systems
+        id_search_str = '|' + '|'.join(system_ids) + '|'
+        system_tags = ['s', 'Sstm', 'cL', 't']
+        expr = '|'.join([f"//{system_tag}[contains('{id_search_str}', concat('|', @z, '|'))]" for system_tag in system_tags])
+        
+        system_nodes = hyperspace_node.xpath(expr)
+        print(f'Found {len(system_nodes)} systems')
+
+        # create dict mapping system id (int) to each system (StarSystem)
+        id_system_map = {}
+
+        for system_node in system_nodes:
+            name = system_node.get('dN')
+
+            # read location from the <l> tag
+            # if <l> is empty, then it references the tag which stores the loc with its ref attrib
+            location_node = system_node.find('l')
+            if location_node.text:
+                loc_px = location_node.text.split('|')
+            else:
+                loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_node.get('ref')}']").text.split('|')
+
+            sys_id = system_node.get('z')
+            loc_ly = [float(coord)/2000 for coord in loc_px]
+            
+            id_system_map[sys_id] = StarSystem(sys_id, name, loc_ly)
+        print(f"Mapped ID's to systems")
+        return id_system_map
+
+    def assign_planets_to_systems(self, campaign_xml_root, id_system_map):
+        # find all <Plnt> tags with an id 'z' attrib (the ones with definitions)
+        hyperspace_node = campaign_xml_root.find('starSystems')
+        planet_nodes = hyperspace_node.xpath('//Plnt[@z]')
+        print(f'Found {len(planet_nodes)} planets')
+        try:
+            for planet_node in planet_nodes:
+                system_id = planet_node.find('cL').get('ref')
+
+                # tag showing if it's a planet or star
+                tag = planet_node.find('tags').find('st').text
+                if tag == 'planet':
+                    id = planet_node.get('z')
+                    market_node = planet_node.find('market')
+                    type = planet_node.find('type').text
+                    if market_node is not None and (name_node := market_node.find('name')) is not None:
+                        name = name_node.text
+                        # if it's uninhabited, it stores the planet conditions in tags inside a <cond> tag
+                        if (cond_node := market_node.find('cond')) is not None:
+                            cond = {node.text for node in cond_node}
+                        # otherwise it stores conditions in the 'i' attrib of tags inside a <conditions> tag
+                        else:
+                            cond = {node.get('i') for node in market_node.find('conditions')}
+                            id_system_map[system_id].set_claimed()
+                        new_planet = Planet(id, name, type, cond)
+                        id_system_map[system_id].add_planet(new_planet)
+                        
+                elif tag == 'star':
+                    id_system_map[system_id].add_star(planet_node.find('type').text)
+        except KeyError as e:
+            key = int(str(e).strip("'"))
+            print(f'ERROR: system z="{key}" not parsed from XML')
+        print(f'Assigned {len(planet_nodes)} planets to {len(id_system_map)} systems')
+        return id_system_map
+
+    def get_matching_systems(self, system_requirement):
+        matching_systems = []
+        for system in self.systems:
+            if system_requirement.check(system):
+                matching_systems.append(system)
+        return matching_systems
+
 
 class PlanetReq:
     def __init__(self, desired_types=[], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, require_low_gravity=False, exclude_high_gravity=False):
         self.desired_types = desired_types
         self.desired_resources = desired_resources
         if desired_resources:
-            self.desired_resources_levels = [get_resource_levels(desired_resource) for desired_resource in desired_resources]
+            # get better resource levels to match the search (e.q. if 'ore_sparse', search should also match 'ore_rich' etc)
+            self.desired_resources_levels = [self.get_better_resource_levels(desired_resource_level) for desired_resource_level in desired_resources]
         self.desired_hazard = desired_hazard
         self.exclusive_type_mode = exclusive_type_mode
         self.require_low_gravity = require_low_gravity
@@ -238,6 +241,13 @@ class PlanetReq:
             if not all([any([level in planet.conditions for level in resource_levels]) for resource_levels in self.desired_resources_levels]):
                 return False
         return True
+
+    def get_better_resource_levels(self, desired_resource_level):
+        resource_levels_list = [ORE_LEVELS, RARE_ORE_LEVELS, FARMLAND_LEVELS, ORGANICS_LEVELS, VOLATILES_LEVELS, RUINS_LEVELS]
+        index_of_desired_resource_type = [desired_resource_level in resource_levels for resource_levels in resource_levels_list].index(True)
+        desired_resource_levels = resource_levels_list[index_of_desired_resource_type]
+        index_of_desired_level = desired_resource_levels.index(desired_resource_level)
+        return desired_resource_levels[index_of_desired_level:]
 
     def __repr__(self):
         repr_str = ''
@@ -263,30 +273,28 @@ class PlanetReq:
         repr_str = '- planet: ' + repr_str
         return repr_str
 
+
 class StarSystemReq:
     def __init__(self, max_distance=None, min_planet_num=None, planet_reqs=None):
         self.max_distance = max_distance
         self.planet_reqs = planet_reqs
         self.min_planet_num = min_planet_num
 
-    def check(self, sys):
-        if self.max_distance is not None and sys.dist > self.max_distance:
-            #print('max dist check failed')
+    def check(self, system):
+        if self.max_distance is not None and system.dist > self.max_distance:
             return False
 
-        if self.min_planet_num is not None and len(sys.planets) < self.min_planet_num:
-            #print('planet num check failed')
+        if self.min_planet_num is not None and len(system.planets) < self.min_planet_num:
             return False
 
         all_reqs_fulfilled = True
         for p_req in self.planet_reqs:
             req_fulfilled = False
-            for p in sys.planets:
+            for p in system.planets:
                 if p_req.check(p):
                     req_fulfilled = True
                     break
             if req_fulfilled == False:
-                #print(f'check failed for: {p_req}')
                 all_reqs_fulfilled = False
                 break
         if not all_reqs_fulfilled:
@@ -299,21 +307,3 @@ class StarSystemReq:
 
 # desired theme
 # stable locs
-
-'''x = []
-y = []
-txt = []
-for s in systems.values():
-    if len(s['loc']) == 2:
-        x.append(float(s['loc'][0]))
-        y.append(float(s['loc'][1]))
-        txt.append(s['name'].removesuffix(' Star System'))
-
-fig, ax = plt.subplots()
-
-ax.scatter(x, y)
-for i, annotation in enumerate(txt):
-    ax.annotate(annotation, (x[i], y[i]))
-print(time.time() - start)
-plt.show()'''
-
