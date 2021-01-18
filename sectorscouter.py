@@ -175,10 +175,10 @@ class Sector:
         hyperspace_node = campaign_xml_root.find('starSystems')
         planet_nodes = hyperspace_node.xpath('//Plnt[@z]')
         print(f'Found {len(planet_nodes)} planets')
-        try:
-            for planet_node in planet_nodes:
+       
+        for planet_node in planet_nodes:
+            try:
                 system_id = planet_node.find('cL').get('ref')
-
                 # tag showing if it's a planet or star
                 tag = planet_node.find('tags').find('st').text
                 if tag == 'planet':
@@ -199,9 +199,9 @@ class Sector:
                         
                 elif tag == 'star':
                     id_system_map[system_id].add_star(planet_node.find('type').text)
-        except KeyError as e:
-            key = int(str(e).strip("'"))
-            print(f'ERROR: system z="{key}" not parsed from XML')
+            except KeyError as e:
+                key = int(str(e).strip("'"))
+                print(f'ERROR: system z="{key}" not parsed from XML')
         print(f'Assigned {len(planet_nodes)} planets to {len(id_system_map)} systems')
         return id_system_map
 
