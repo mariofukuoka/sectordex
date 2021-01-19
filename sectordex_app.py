@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-import sectorscouter as ss
+import sectordex_lib as lib
 from time import sleep
 import starmapdrawer
 
@@ -69,12 +69,12 @@ farmland_level_labels = ['-', 'poor', 'adequate', 'rich', 'bountiful']
 organics_level_labels = ['-', 'trace', 'common', 'abundant', 'plentiful']
 volatiles_level_labels = ['-', 'trace', 'diffuse', 'abundant', 'plentiful']
 ruins_level_labels = ['-', 'scattered', 'widespread', 'extensive', 'vast']
-ore_level_label_id_map = dict(zip(ore_level_labels, [None] + ss.ORE_LEVELS))
-rare_ore_level_label_id_map = dict(zip(rare_ore_level_labels, [None] + ss.RARE_ORE_LEVELS))
-farmland_level_label_id_map = dict(zip(farmland_level_labels, [None] + ss.FARMLAND_LEVELS))
-organics_level_label_id_map = dict(zip(organics_level_labels, [None] + ss.ORGANICS_LEVELS))
-volatiles_level_label_id_map = dict(zip(volatiles_level_labels, [None] + ss.VOLATILES_LEVELS))
-ruins_level_label_id_map = dict(zip(ruins_level_labels, [None] + ss.RUINS_LEVELS))
+ore_level_label_id_map = dict(zip(ore_level_labels, [None] + lib.ORE_LEVELS))
+rare_ore_level_label_id_map = dict(zip(rare_ore_level_labels, [None] + lib.RARE_ORE_LEVELS))
+farmland_level_label_id_map = dict(zip(farmland_level_labels, [None] + lib.FARMLAND_LEVELS))
+organics_level_label_id_map = dict(zip(organics_level_labels, [None] + lib.ORGANICS_LEVELS))
+volatiles_level_label_id_map = dict(zip(volatiles_level_labels, [None] + lib.VOLATILES_LEVELS))
+ruins_level_label_id_map = dict(zip(ruins_level_labels, [None] + lib.RUINS_LEVELS))
 res_label_col = [
     [sg.T('Ore: ')],
     [sg.T('Rare ore: ')],
@@ -166,7 +166,7 @@ starmap_win = None
 '''
 ============================================================= Global vars ============================================================
 '''
-sector = ss.Sector()
+sector = lib.Sector()
 drag_start_x, drag_start_y = 0, 0
 drag_offset_x, drag_offset_y = 0, 0
 is_dragging = False
@@ -259,7 +259,7 @@ while True:
         # get hazard from ui
         new_hazard = values['hazard_slider']/100
         # create planet req object
-        new_planet_req = ss.PlanetReq(
+        new_planet_req = lib.PlanetReq(
             desired_types=new_types, 
             desired_resources=new_resources, 
             desired_hazard=new_hazard,
@@ -285,7 +285,7 @@ while True:
 
     # pressing search button handler
     elif event == 'search_systems_button':
-        system_requirement = ss.StarSystemReq(
+        system_requirement = lib.StarSystemReq(
             max_distance=values['max_dist_slider'], 
             min_planet_num=values['min_planet_num_slider'], 
             planet_reqs=main_win['planet_req_listbox'].GetListValues()
@@ -306,9 +306,12 @@ while True:
             detail_string += f'Distance from center: {sys.dist:0.1f}ly\n'
             detail_string += f'Stars: {", ".join(sys.stars)}\n\n'
             detail_string += f'Contains {len(sys.planets)} planets:\n'
-            for i, planet in enumerate(sys.planets):
+            for i, planet in enumerate(sorted(sys.planets, key=lambda p: p.hazard)):
                 detail_string += f'\n{i+1}. {planet}\n'
-                for cond in planet.conditions:
+                for res in planet.resources:
+                    detail_string += f'\t- {res}\n'
+                detail_string += '\n'
+                for cond in planet.hazard_conditions:
                     detail_string += f'\t- {cond}\n'
         else:
             detail_string = ''

@@ -8,8 +8,9 @@ FARMLAND_LEVELS = ['farmland_poor', 'farmland_adequate', 'farmland_rich', 'farml
 ORGANICS_LEVELS = ['organics_trace', 'organics_common', 'organics_abundant', 'organics_plentiful']
 VOLATILES_LEVELS = ['volatiles_trace', 'volatiles_diffuse', 'volatiles_abundant', 'volatiles_plentiful']
 RUINS_LEVELS = ['ruins_scattered', 'ruins_widespread', 'ruins_extensive', 'ruins_vast']
+COMBINED_RESOURCE_LEVELS = ORE_LEVELS + RARE_ORE_LEVELS + FARMLAND_LEVELS + ORGANICS_LEVELS + VOLATILES_LEVELS + RUINS_LEVELS
 
-COND_MAP = {
+HAZARD_COND_MAP = {
     'decivilized': '0.25',
     'hot': '0.25', 
     'habitable': '-0.25', 
@@ -49,12 +50,14 @@ COND_MAP = {
 
 
 class Planet:
-    def __init__(self, id, name, type, cond):
+    def __init__(self, id, name, type, conditions):
         self.id = id
         self.name = name
         self.type = type
-        self.conditions = cond
-        self.hazard = 1 + sum([float(COND_MAP[c]) for c in cond if c in COND_MAP])
+        self.conditions = conditions
+        self.resources = [cond for cond in conditions if cond in COMBINED_RESOURCE_LEVELS]
+        self.hazard_conditions = [cond for cond in conditions if cond in HAZARD_COND_MAP]
+        self.hazard = 1 + sum([float(HAZARD_COND_MAP[cond]) for cond in self.hazard_conditions])
 
     def __repr__(self):
         return f'{self.name} ({self.hazard*100:0.0f}% {self.type})'
@@ -233,12 +236,12 @@ class PlanetReq:
                 return False
         if self.desired_hazard is not None and planet.hazard > self.desired_hazard:
             return False
-        if self.require_low_gravity and 'low_gravity' not in planet.conditions:
+        if self.require_low_gravity and 'low_gravity' not in planet.hazard_conditions:
             return False
-        if self.exclude_high_gravity and 'high_gravity' in planet.conditions:
+        if self.exclude_high_gravity and 'high_gravity' in planet.hazard_conditions:
             return False
         if self.desired_resources:
-            if not all([any([level in planet.conditions for level in resource_levels]) for resource_levels in self.desired_resources_levels]):
+            if not all([any([level in planet.resources for level in resource_levels]) for resource_levels in self.desired_resources_levels]):
                 return False
         return True
 
@@ -304,6 +307,3 @@ class StarSystemReq:
     
     def __repr__(self):
         return f'<sys req: at least {self.min_planet_num} planets at least {self.max_distance} from center with {self.planet_reqs}>'
-
-# desired theme
-# stable locs
