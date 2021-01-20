@@ -30,6 +30,23 @@ def get_starmap_window(graph_bottom_left, graph_top_right):
     ]
     return sg.Window('Starmap', layout, finalize=True, element_justification='right')
 
+def disable_planet_req_panel(main_win, disable=True):
+    keys = [
+        'planet_types_listbox',
+        'ore_dropdown',
+        'rare_ore_dropdown',
+        'farmland_dropdown',
+        'organics_dropdown',
+        'volatiles_dropdown',
+        'ruins_dropdown',
+        'hazard_slider',
+        'planet_conditions_listbox',
+        'exclusive_types_checkbox',
+        'require_low_grav_checkbox',
+        'exclude_high_grav_checkbox'
+    ]
+    for key in keys:
+        main_win[key].Update(disabled=disable)
 '''
 ============================================================== Import panel ==============================================================
 '''
@@ -51,16 +68,24 @@ system_req_frame_data = [
     [sg.Frame('Maximum distance from map center in ly', dist_slider)]
 ]
 system_req_frame = sg.Frame('System requirements', system_req_frame_data)
-
+'''
+======================================================== Planet requirements panel ========================================================
+'''
 # ADDED PLANET REQUIREMENTS LIST
-added_req_list = sg.Listbox(values=[], size=(74,5), pad=(9,9), enable_events=False, k='planet_req_listbox')
+added_req_list = sg.Listbox(values=[], size=(74,5), pad=(9,9), enable_events=True, k='planet_req_listbox')
 
 # PLANET TYPE LIST
 planet_type_frame_data = [
-    [sg.Listbox(values=[], size=(30, 19), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_types_listbox')],
-    [sg.Button('Deselect all types', size=(15,1), k='deselect_all_types_button')]
+    [sg.Listbox(values=[], size=(30, 9), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_types_listbox', right_click_menu=['', ['Deselect all types']])]
+    #[sg.Button('Deselect all types', size=(15,1), k='deselect_all_types_button')]
 ]
 planet_type_frame = sg.Frame('Planet Type', planet_type_frame_data)
+
+planet_conditions_frame_data = [
+    [sg.Listbox(values=[], size=(30, 10), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_conditions_listbox', right_click_menu=['', ['Deselect all conditions']])]
+    #[sg.Button('Deselect all types', size=(15,1), k='deselect_all_types_button')]
+]
+planet_conditions_frame = sg.Frame('Planet Conditions', planet_conditions_frame_data)
 
 # RESOURCE DROPDOWNS
 ore_level_labels = ['-', 'sparse', 'moderate', 'abundant', 'rich', 'ultrarich']
@@ -112,7 +137,8 @@ misc_frame = sg.Frame('Miscellaneous', misc_frame_data)
 
 # REQUIREMENTS PANEL LAYOUT (left half of main window)
 planet_req_col_1 = sg.Column([
-    [planet_type_frame]
+    [planet_type_frame],
+    [planet_conditions_frame]
 ])
 planet_req_col_2 = sg.Column([
     [resources_frame],
@@ -157,7 +183,8 @@ results_col = sg.Column([
 ])
 layout = [
     [save_import_frame],
-    [req_col, sg.VerticalSeparator(), results_col]
+    [req_col, sg.VerticalSeparator(), results_col],
+    [sg.Button('disable', k='disable_test')]
 ]
 main_win = sg.Window('Sector scouter', layout, finalize=True)
 import_progress_win = None
@@ -171,9 +198,54 @@ drag_start_x, drag_start_y = 0, 0
 drag_offset_x, drag_offset_y = 0, 0
 is_dragging = False
 
+toggle_disable = False
+last_selected_planet_req = None
 '''
 =========================================================== GUI event loop ===========================================================
 '''
+
+def update_ui_params_from_selected_planet_req(main_win):
+    if values['planet_req_listbox']:
+        selected = values['planet_req_listbox'][0]
+        # type
+        types = main_win['planet_types_listbox'].GetListValues()
+        main_win['planet_types_listbox'].update(set_to_index=[types.index(desired_type) for desired_type in selected.desired_types])
+        # cond
+        conds = main_win['planet_conditions_listbox'].GetListValues()
+        main_win['planet_conditions_listbox'].update(set_to_index=[conds.index(desired_cond) for desired_cond in selected.desired_conditions])
+        # res
+        main_win['ore_dropdown'].update(set_to_index=0)
+        main_win['rare_ore_dropdown'].update(set_to_index=0)
+        main_win['farmland_dropdown'].update(set_to_index=0)
+        main_win['organics_dropdown'].update(set_to_index=0)
+        main_win['volatiles_dropdown'].update(set_to_index=0)
+        main_win['ruins_dropdown'].update(set_to_index=0)
+        print(selected.desired_resources)
+        for resource in selected.desired_resources:
+            if resource in lib.ORE_LEVELS:
+                main_win['ore_dropdown'].update(set_to_index=lib.ORE_LEVELS.index(resource)+1)
+                print('ore_dropdown')
+            elif resource in lib.RARE_ORE_LEVELS:
+                main_win['rare_ore_dropdown'].update(set_to_index=lib.RARE_ORE_LEVELS.index(resource)+1)
+                print('ore_dropdown')
+            elif resource in lib.FARMLAND_LEVELS:
+                main_win['farmland_dropdown'].update(set_to_index=lib.FARMLAND_LEVELS.index(resource)+1)
+                print('ore_dropdown')
+            elif resource in lib.ORGANICS_LEVELS:
+                main_win['organics_dropdown'].update(set_to_index=lib.ORGANICS_LEVELS.index(resource)+1)
+                print('ore_dropdown')
+            elif resource in lib.VOLATILES_LEVELS:
+                main_win['volatiles_dropdown'].update(set_to_index=lib.VOLATILES_LEVELS.index(resource)+1)
+                print('ore_dropdown')
+            elif resource in lib.RUINS_LEVELS:
+                main_win['ruins_dropdown'].update(set_to_index=lib.RUINS_LEVELS.index(resource)+1)
+                print('ore_dropdown')
+        main_win['hazard_slider'].Update(value=selected.desired_hazard*100)
+        main_win['exclusive_types_checkbox'].Update(value=selected.exclusive_type_mode)
+        main_win['require_low_grav_checkbox'].Update(value=selected.require_low_gravity)
+        main_win['exclude_high_grav_checkbox'].Update(value=selected.exclude_high_gravity)
+
+
 while True:
     win, event, values = sg.read_all_windows()
 
@@ -184,6 +256,13 @@ while True:
             win.close()
         else:
             break
+
+    elif event == 'disable_test':
+        if toggle_disable:
+            toggle_disable = False
+        else:
+            toggle_disable = True
+        disable_planet_req_panel(win, toggle_disable)
 
     # show on map handler
     elif event == 'show_on_map_button' or event == 'Show on sector map':
@@ -207,6 +286,7 @@ while True:
         try:
             sector.load_from_xml(path)
             main_win['planet_types_listbox'].Update(values=sorted(list(sector.planet_types), key=lambda planet_type: planet_type.removeprefix('US_')))
+            main_win['planet_conditions_listbox'].Update(values=sorted(list(sector.all_conditions)))
             main_win['max_dist_slider'].Update(range=(0, sector.max_system_dist))
             main_win['max_dist_slider'].Update(value=sector.max_system_dist)
             main_win['min_planet_num_slider'].Update(range=(0, sector.max_system_planet_num))
@@ -225,23 +305,32 @@ while True:
     elif event == 'exclude_high_grav_checkbox':
         if values['exclude_high_grav_checkbox']:
             main_win['require_low_grav_checkbox'].Update(value=False)
+    
+    #elif event == 'planet_req_listbox':
+    #    update_ui_params_from_selected_planet_req(main_win)
+    
 
     elif event == 'remove_planet_req_button':
         curr_reqs = main_win['planet_req_listbox'].GetListValues()
         try:
-            selected_val = main_win['planet_req_listbox'].get()[0]
+            selected_val = values['planet_req_listbox'][0]
             curr_reqs.remove(selected_val)
             main_win['planet_req_listbox'].Update(values=curr_reqs)
         except IndexError:
             pass
 
-    elif event == 'deselect_all_types_button':
+    elif event == 'Deselect all types':
         main_win['planet_types_listbox'].SetValue([None])
+
+    elif event == 'Deselect all conditions':
+        main_win['planet_conditions_listbox'].SetValue([None])
 
     # pressing add new planet req handler
     elif event == 'add_planet_req_button':
         # get types from ui
         new_types = values['planet_types_listbox']
+        # get conditions from ui
+        new_conditions = values['planet_conditions_listbox']
         # get resource reqs from ui
         new_resources = []
         if (ore_level := ore_level_label_id_map[main_win['ore_dropdown'].get()]) is not None:
@@ -261,6 +350,7 @@ while True:
         # create planet req object
         new_planet_req = lib.PlanetReq(
             desired_types=new_types, 
+            desired_conditions=new_conditions,
             desired_resources=new_resources, 
             desired_hazard=new_hazard,
             exclusive_type_mode=values['exclusive_types_checkbox'],
@@ -272,6 +362,7 @@ while True:
         main_win['planet_req_listbox'].Update(values=curr_reqs + [new_planet_req])
         # reset planet req panel slider/dropdown/selection values to default
         main_win['planet_types_listbox'].SetValue([None])
+        main_win['planet_conditions_listbox'].SetValue([None])
         main_win['hazard_slider'].Update(value=main_win['hazard_slider'].DefaultValue)
         main_win['ore_dropdown'].Update(set_to_index=0)
         main_win['rare_ore_dropdown'].Update(set_to_index=0)

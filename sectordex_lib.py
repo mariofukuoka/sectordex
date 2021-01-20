@@ -54,8 +54,8 @@ class Planet:
         self.id = id
         self.name = name
         self.type = type
-        self.conditions = conditions
         self.resources = [cond for cond in conditions if cond in COMBINED_RESOURCE_LEVELS]
+        self.conditions = [cond for cond in conditions if cond not in COMBINED_RESOURCE_LEVELS]
         self.hazard_conditions = [cond for cond in conditions if cond in HAZARD_COND_MAP]
         self.hazard = 1 + sum([float(HAZARD_COND_MAP[cond]) for cond in self.hazard_conditions])
 
@@ -108,26 +108,23 @@ class Sector:
         campaign_xml_root = self.get_xml_root(path)
         id_system_map = self.get_initial_id_system_map(campaign_xml_root)
         id_system_map = self.assign_planets_to_systems(campaign_xml_root, id_system_map)
-        systems = list(id_system_map.values())
-
+        self.systems = list(id_system_map.values())
         # calculate stats
-        planet_types = set()
-        star_types = set()
-        max_system_dist = 0
-        max_system_planet_num = 0
-        for system in systems:
-            max_system_dist = max(max_system_dist, system.dist)
-            max_system_planet_num = max(max_system_planet_num, system.get_planet_num())
+        self.planet_types = set()
+        self.star_types = set()
+        self.all_conditions = set()
+        self.max_system_dist = 0
+        self.max_system_planet_num = 0
+        for system in self.systems:
+            self.max_system_dist = max(self.max_system_dist, system.dist)
+            self.max_system_planet_num = max(self.max_system_planet_num, system.get_planet_num())
             for planet in system.planets:
-                planet_types.add(planet.type)
+                self.planet_types.add(planet.type)
+                self.all_conditions.update(planet.conditions)
             for star in system.stars:
-                star_types.add(star)
-
-        self.systems = systems
-        self.planet_types = planet_types
-        self.star_types = star_types
-        self.max_system_dist = max_system_dist
-        self.max_system_planet_num = max_system_planet_num
+                self.star_types.add(star)
+        if None in self.all_conditions:
+            self.all_conditions.remove(None)
 
     def get_xml_root(self, path):
         with open(path, 'r') as xml_file:
@@ -140,24 +137,18 @@ class Sector:
         # read the system id's listed at top level in the xml
         system_index = campaign_xml_root.find('starSystems')
         system_ids = [system.get('ref') for system in system_index]
-
         hyperspace_node = campaign_xml_root.find('starSystems')
-
         # use search string which includes all of the system id's concatenated together
         # to search for each of the tag nodes which define the contents of the listed systems
         id_search_str = '|' + '|'.join(system_ids) + '|'
         system_tags = ['s', 'Sstm', 'cL', 't']
         expr = '|'.join([f"//{system_tag}[contains('{id_search_str}', concat('|', @z, '|'))]" for system_tag in system_tags])
-        
         system_nodes = hyperspace_node.xpath(expr)
         print(f'Found {len(system_nodes)} systems')
-
         # create dict mapping system id (int) to each system (StarSystem)
         id_system_map = {}
-
         for system_node in system_nodes:
             name = system_node.get('dN')
-
             # read location from the <l> tag
             # if <l> is empty, then it references the tag which stores the loc with its ref attrib
             location_node = system_node.find('l')
@@ -165,10 +156,8 @@ class Sector:
                 loc_px = location_node.text.split('|')
             else:
                 loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_node.get('ref')}']").text.split('|')
-
             sys_id = system_node.get('z')
             loc_ly = [float(coord)/2000 for coord in loc_px]
-            
             id_system_map[sys_id] = StarSystem(sys_id, name, loc_ly)
         print(f"Mapped ID's to systems")
         return id_system_map
@@ -217,8 +206,9 @@ class Sector:
 
 
 class PlanetReq:
-    def __init__(self, desired_types=[], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, require_low_gravity=False, exclude_high_gravity=False):
+    def __init__(self, desired_types=[], desired_conditions = [], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, require_low_gravity=False, exclude_high_gravity=False):
         self.desired_types = desired_types
+        self.desired_conditions = desired_conditions
         self.desired_resources = desired_resources
         if desired_resources:
             # get better resource levels to match the search (e.q. if 'ore_sparse', search should also match 'ore_rich' etc)
@@ -234,6 +224,10 @@ class PlanetReq:
                 return False
             elif self.exclusive_type_mode and planet.type in self.desired_types:
                 return False
+        if self.desired_conditions:
+            for cond in self.desired_conditions:
+                if cond not in planet.conditions:
+                    return False
         if self.desired_hazard is not None and planet.hazard > self.desired_hazard:
             return False
         if self.require_low_gravity and 'low_gravity' not in planet.hazard_conditions:
