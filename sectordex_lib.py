@@ -168,6 +168,7 @@ class Sector:
         planet_nodes = hyperspace_node.xpath('//Plnt[@z]')
         print(f'Found {len(planet_nodes)} planets')
        
+        error_system_ids = []
         for planet_node in planet_nodes:
             try:
                 system_id = planet_node.find('cL').get('ref')
@@ -192,8 +193,10 @@ class Sector:
                 elif tag == 'star':
                     id_system_map[system_id].add_star(planet_node.find('type').text)
             except KeyError as e:
-                key = int(str(e).strip("'"))
-                print(f'ERROR: system z="{key}" not parsed from XML')
+                key = str(e).strip("'")
+                if key not in error_system_ids:
+                    error_system_ids.append(key)
+                    print(f'WARNING: system z="{key}" not parsed from XML')
         print(f'Assigned {len(planet_nodes)} planets to {len(id_system_map)} systems')
         return id_system_map
 
@@ -206,6 +209,7 @@ class Sector:
 
 
 class PlanetReq:
+    next_id = 0
     def __init__(self, desired_types=[], desired_conditions = [], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, require_low_gravity=False, exclude_high_gravity=False):
         self.desired_types = desired_types
         self.desired_conditions = desired_conditions
@@ -217,6 +221,11 @@ class PlanetReq:
         self.exclusive_type_mode = exclusive_type_mode
         self.require_low_gravity = require_low_gravity
         self.exclude_high_gravity = exclude_high_gravity
+        PlanetReq.next_id += 1
+        self.id = PlanetReq.next_id 
+
+    def __eq__(self, other):
+        return self.id == other.id
 
     def check(self, planet):
         if self.desired_types:
