@@ -210,7 +210,7 @@ class Sector:
 
 class PlanetReq:
     next_id = 0
-    def __init__(self, desired_types=[], desired_conditions = [], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, require_low_gravity=False, exclude_high_gravity=False):
+    def __init__(self, desired_types=[], desired_conditions = [], desired_resources=[], desired_hazard=None, exclusive_type_mode=False, exclusive_cond_mode=False):
         self.desired_types = desired_types
         self.desired_conditions = desired_conditions
         self.desired_resources = desired_resources
@@ -219,8 +219,7 @@ class PlanetReq:
             self.desired_resources_levels = [self.get_better_resource_levels(desired_resource_level) for desired_resource_level in desired_resources]
         self.desired_hazard = desired_hazard
         self.exclusive_type_mode = exclusive_type_mode
-        self.require_low_gravity = require_low_gravity
-        self.exclude_high_gravity = exclude_high_gravity
+        self.exclusive_cond_mode = exclusive_cond_mode
         PlanetReq.next_id += 1
         self.id = PlanetReq.next_id 
 
@@ -233,19 +232,21 @@ class PlanetReq:
                 return False
             elif self.exclusive_type_mode and planet.type in self.desired_types:
                 return False
+
         if self.desired_conditions:
             for cond in self.desired_conditions:
-                if cond not in planet.conditions:
+                if not self.exclusive_cond_mode and cond not in planet.conditions:
                     return False
+                elif self.exclusive_cond_mode and cond in planet.conditions:
+                    return False
+
         if self.desired_hazard is not None and planet.hazard > self.desired_hazard:
             return False
-        if self.require_low_gravity and 'low_gravity' not in planet.hazard_conditions:
-            return False
-        if self.exclude_high_gravity and 'high_gravity' in planet.hazard_conditions:
-            return False
+
         if self.desired_resources:
             if not all([any([level in planet.resources for level in resource_levels]) for resource_levels in self.desired_resources_levels]):
                 return False
+
         return True
 
     def get_better_resource_levels(self, desired_resource_level):
@@ -257,9 +258,19 @@ class PlanetReq:
 
     def __repr__(self):
         repr_str = ''
-        if self.desired_types and self.exclusive_type_mode:
-            repr_str += 'not '
-        repr_str += f'{"/".join(self.desired_types)}'
+        #repr_str += f'{"/".join(self.desired_types)}'
+        if self.desired_types:
+            if self.exclusive_type_mode:
+                repr_str += 'n'
+            repr_str += f'one of {len(self.desired_types)} types'
+        if self.desired_conditions:
+            if repr_str != '':
+                repr_str += ', '
+            repr_str += f'{len(self.desired_conditions)} '
+            if not self.exclusive_cond_mode:
+                repr_str +=  'req. conditions'
+            else:
+                repr_str += 'excl. conditions'
         if self.desired_resources:
             if repr_str != '':
                 repr_str += ', '
@@ -267,16 +278,8 @@ class PlanetReq:
         if self.desired_hazard:
             if repr_str != '':
                 repr_str += ', '
-            repr_str += f'hazard below {self.desired_hazard*100:0.0f}%'
-        if self.require_low_gravity:
-            if repr_str != '':
-                repr_str += ', '
-            repr_str += 'lo-grav'
-        if self.exclude_high_gravity:
-            if repr_str != '':
-                repr_str += ', '
-            repr_str += 'non hi-grav'
-        repr_str = '- planet: ' + repr_str
+            repr_str += f'hazard < {self.desired_hazard*100:0.0f}%'
+        repr_str = '> planet: ' + repr_str
         return repr_str
 
 
