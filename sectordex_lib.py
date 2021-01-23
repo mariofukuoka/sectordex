@@ -10,6 +10,15 @@ VOLATILES_LEVELS = ['volatiles_trace', 'volatiles_diffuse', 'volatiles_abundant'
 RUINS_LEVELS = ['ruins_scattered', 'ruins_widespread', 'ruins_extensive', 'ruins_vast']
 COMBINED_RESOURCE_LEVELS = ORE_LEVELS + RARE_ORE_LEVELS + FARMLAND_LEVELS + ORGANICS_LEVELS + VOLATILES_LEVELS + RUINS_LEVELS
 
+res_vals = [-1, 0, 1, 2]
+res_vals_ores = res_vals + [3]
+RESOURCE_MAP = dict(zip(ORE_LEVELS, res_vals_ores))
+RESOURCE_MAP.update(dict(zip(RARE_ORE_LEVELS, res_vals_ores)))
+RESOURCE_MAP.update(dict(zip(FARMLAND_LEVELS, res_vals)))
+RESOURCE_MAP.update(dict(zip(ORGANICS_LEVELS, res_vals)))
+RESOURCE_MAP.update(dict(zip(VOLATILES_LEVELS, res_vals)))
+RESOURCE_MAP.update(dict(zip(RUINS_LEVELS, res_vals)))
+
 HAZARD_COND_MAP = {
     'decivilized': '0.25',
     'hot': '0.25', 
@@ -56,7 +65,8 @@ class Planet:
         self.type = type
         self.resources = [cond for cond in conditions if cond in COMBINED_RESOURCE_LEVELS]
         self.conditions = [cond for cond in conditions if cond not in COMBINED_RESOURCE_LEVELS]
-        self.hazard_conditions = [cond for cond in conditions if cond in HAZARD_COND_MAP]
+        self.hazard_conditions = [cond for cond in self.conditions if cond in HAZARD_COND_MAP]
+        self.other_conditions = [cond for cond in self.conditions if cond not in HAZARD_COND_MAP]
         self.hazard = 1 + sum([float(HAZARD_COND_MAP[cond]) for cond in self.hazard_conditions])
 
     def __repr__(self):
@@ -96,6 +106,10 @@ class StarSystem:
 
 
 class Sector:
+
+    MIN_HAZARD = 9999
+    MAX_HAZARD = 0
+
     def __init__(self):
         self.systems = None
         self.planet_types = None
@@ -121,16 +135,17 @@ class Sector:
             for planet in system.planets:
                 self.planet_types.add(planet.type)
                 self.all_conditions.update(planet.conditions)
+                Sector.MIN_HAZARD = min(Sector.MIN_HAZARD, planet.hazard)
+                Sector.MAX_HAZARD = max(Sector.MAX_HAZARD, planet.hazard)
             for star in system.stars:
                 self.star_types.add(star)
         if None in self.all_conditions:
             self.all_conditions.remove(None)
 
     def get_xml_root(self, path):
-        with open(path, 'r') as xml_file:
-            tree = etree.parse(xml_file)
+        tree = etree.parse(path)
         root = tree.getroot()
-        print(f'Loaded XML file structure from {xml_file.name.split("/")[-1]}')
+        print(f'Loaded XML file structure from {path.split("/")[-1]}')
         return root
 
     def get_initial_id_system_map(self, campaign_xml_root):
@@ -186,6 +201,7 @@ class Sector:
                         # otherwise it stores conditions in the 'i' attrib of tags inside a <conditions> tag
                         else:
                             cond = {node.get('i') for node in market_node.find('conditions')}
+                            cond.remove(None)
                             id_system_map[system_id].set_claimed()
                         new_planet = Planet(id, name, type, cond)
                         id_system_map[system_id].add_planet(new_planet)
@@ -207,6 +223,8 @@ class Sector:
                 matching_systems.append(system)
         return matching_systems
 
+    def get_hazard_range(self):
+        return Sector.MIN_HAZARD, Sector.MAX_HAZARD
 
 class PlanetReq:
     next_id = 0
@@ -271,14 +289,16 @@ class PlanetReq:
                 repr_str +=  'req. conditions'
             else:
                 repr_str += 'excl. conditions'
+        if self.desired_hazard and self.desired_hazard != Sector.MAX_HAZARD:
+            if repr_str != '':
+                repr_str += ', '
+            repr_str += f'hazard =< {self.desired_hazard*100:0.0f}%'
         if self.desired_resources:
             if repr_str != '':
                 repr_str += ', '
-            repr_str += f'at least {"/".join(self.desired_resources)}'
-        if self.desired_hazard:
-            if repr_str != '':
-                repr_str += ', '
-            repr_str += f'hazard < {self.desired_hazard*100:0.0f}%'
+            repr_str += f'{"/".join(self.desired_resources)}'
+        if not repr_str:
+            repr_str = 'no requirements'
         repr_str = '> planet: ' + repr_str
         return repr_str
 
