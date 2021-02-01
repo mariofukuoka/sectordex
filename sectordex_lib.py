@@ -204,9 +204,9 @@ class Sector:
         starsector_dir = os.path.dirname(path) + '/../..'
         if not HAZARD_COND_MAP:
             set_hazard_cond_map(starsector_dir)
-        if not COND_ID_TO_NAME_MAP or not COND_NAME_TO_ID_MAP:
+        if not COND_ID_TO_NAME_MAP:
             set_cond_id_name_maps(starsector_dir)
-        if not TYPE_ID_TO_NAME_MAP or not TYPE_NAME_TO_ID_MAP:
+        if not TYPE_ID_TO_NAME_MAP:
             set_type_id_name_maps(starsector_dir)
         # get systems and planets
         id_system_map = self.get_initial_id_system_map(campaign_xml_root)
