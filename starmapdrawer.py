@@ -74,10 +74,10 @@ def draw_stars(starmap_graph, systems, canvas_size):
         x, y = system.loc
         # if inhabited: draw text
         if system.stars:
-            if (star := system.stars[0]) in STAR_DRAW_PARAMS:
-                starmap_graph.draw_circle(*([(x,y)] + STAR_DRAW_PARAMS[star]))
+            if (star_type_id := system.stars[0].type.id) in STAR_DRAW_PARAMS:
+                starmap_graph.draw_circle(*([(x,y)] + STAR_DRAW_PARAMS[star_type_id]))
             else:
-                print('key error', star)
+                print('key error', star.id)
                 starmap_graph.draw_circle((x,y), SIZE_NORMAL, 'white')
                 starmap_graph.draw_text('?', (x, y), 'black', 'Helvetica 6 bold')
 
