@@ -3,13 +3,28 @@ import sectordex_lib as lib
 from time import sleep
 import starmapdrawer
 
-# Color scheme
-sg.theme('BrownBlue')
+sg.theme_background_color(color='#2c2f33') # non-element bg color
+sg.theme_element_background_color(color='#2c2f33') # element bg color
+sg.theme_text_element_background_color(color='#2c2f33') # text elem bg color
+
+sg.theme_border_width(border_width=0) # button & input field border width
+sg.theme_button_color(color=('#ffffff','#4a4c51')) # button text color & button color
+
+sg.theme_input_background_color(color='#1e2124') # input bg color 4a4c51
+sg.theme_slider_color(color='#1e2124') # slider groove color 393a3d
+
+sg.theme_input_text_color(color='#dddddd') # input box text color
+sg.theme_element_text_color(color='#dddddd') # frame title text color
+sg.theme_text_color(color='#dddddd') # res text, text elem and v sep color
+
+sg.theme_slider_border_width(border_width=0) # does nothing?
+
 
 # Secondary windows
 def get_import_progress_window():
     layout = [
-        [sg.Frame('Status', [[sg.Output(size=(40,9), echo_stdout_stderr=True)]])]
+        [sg.Frame('Status', [[sg.Output(size=(40,9), echo_stdout_stderr=True)]], border_width=0)]
+        #[sg.ProgressBar(10, 'h', (28, 20), k='import_progress_bar')]
     ]
     return sg.Window('Import in progress', layout, finalize=True)
 
@@ -57,19 +72,23 @@ save_import_frame_data = [
     [sg.Input(size=(133, 5), k='path_input'), sg.FileBrowse(), sg.Button('Import selected', k='import_selected_button')]
     #[sg.Input(size=(146, 5), k='import_selected_button_path', readonly=True, enable_events=True), sg.FileBrowse(button_text='Import save')]
 ]
-save_import_frame = sg.Frame('Import save (campaign.xml file)', save_import_frame_data)
+save_import_frame = sg.Frame('Import save (campaign.xml file)', save_import_frame_data, border_width=0)
 
 '''
 ======================================================== System requirements panel ========================================================
 '''
 # MINIMUM PLANET NUMBER AND MAXIMUM SYSTEM DISTANCE SLIDERS
-planet_num_slider = [[sg.Slider(range=(0,0),default_value=0,orientation='horizontal',size=(59, 15),border_width=3,k='min_planet_num_slider')]]
-dist_slider = [[sg.Slider(range=(0,0),default_value=0,orientation='horizontal',size=(59, 15), resolution=5,border_width=3,k='max_dist_slider')]]
+
 system_req_frame_data = [
-    [sg.Frame('Minimum number of planets', planet_num_slider)],
-    [sg.Frame('Maximum distance from map center in ly', dist_slider)]
+    [sg.Check('Unclaimed systems only', pad=(10, 12), disabled=True, k='unclaimed_systems_checkbox')],
+    [sg.T('Desired system theme:                    ', pad=(10, 5)), sg.Combo(values=[], default_value=None, size=(40, 5), k='theme_dropdown', readonly=True, disabled=True, pad=(10, 5))],
+    [sg.T('Min number of planets:                     ', pad=(10, 0)), sg.Slider(range=(0,0),default_value=0,orientation='horizontal',size=(33, 12), border_width=0, k='min_planet_num_slider', pad=(10, 0))],
+    [sg.T('Max distance from map center in ly:  ', pad=(10, 0)), sg.Slider(range=(0,0),default_value=0,orientation='horizontal',size=(33, 12), resolution=5, border_width=0, k='max_dist_slider', pad=(10, 0))],
+    [sg.T('', pad=(0, 0))]
+    
 ]
-system_req_frame = sg.Frame('System requirements', system_req_frame_data)
+
+system_req_frame = sg.Frame('General system requirements', system_req_frame_data, border_width=1)
 '''
 ======================================================== Planet requirements panel ========================================================
 '''
@@ -78,16 +97,16 @@ added_req_list = sg.Listbox(values=[], size=(74,5), pad=(9,9), enable_events=Tru
 
 # PLANET TYPE LIST
 planet_type_frame_data = [
-    [sg.Listbox(values=[], size=(30, 9), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_types_listbox', enable_events=True, right_click_menu=['', ['Deselect all types']])]
+    [sg.Listbox(values=[], size=(30, 8), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_types_listbox', enable_events=True, right_click_menu=['', ['Deselect all types']])]
     #[sg.Button('Deselect all types', size=(15,1), k='deselect_all_types_button')]
 ]
-planet_type_frame = sg.Frame('Planet Type (or)', planet_type_frame_data)
+planet_type_frame = sg.Frame('Planet Type (or)', planet_type_frame_data, border_width=0)
 
 planet_conditions_frame_data = [
-    [sg.Listbox(values=[], size=(30, 10), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_cond_listbox', enable_events=True, right_click_menu=['', ['Deselect all conditions']])]
+    [sg.Listbox(values=[], size=(30, 8), select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, k='planet_cond_listbox', enable_events=True, right_click_menu=['', ['Deselect all conditions']])]
     #[sg.Button('Deselect all types', size=(15,1), k='deselect_all_types_button')]
 ]
-planet_conditions_frame = sg.Frame('Planet Conditions (and)', planet_conditions_frame_data)
+planet_conditions_frame = sg.Frame('Planet Conditions (and)', planet_conditions_frame_data, border_width=0)
 
 # RESOURCE DROPDOWNS
 ore_level_labels = ['-', 'sparse', 'moderate', 'abundant', 'rich', 'ultrarich']
@@ -121,27 +140,28 @@ res_dropdown_col = [
 res_frame_data = [
                 [sg.Column(res_label_col), sg.Column(res_dropdown_col)]
             ]
-resources_frame = sg.Frame('Resources (minimum)', res_frame_data)
+resources_frame = sg.Frame('Resources (minimum)', res_frame_data, border_width=0)
 
 # HAZARD SLIDER
 hazard_frame_data = [
-    [sg.Slider(range=(0,25),default_value=0,orientation='horizontal',size=(28, 15), resolution=25, border_width=3, k='hazard_slider', enable_events=True)]
+    [sg.Slider(range=(0,25),default_value=0,orientation='horizontal',size=(28, 15), resolution=25, border_width=0, k='hazard_slider', enable_events=True)]
 ]
-hazard_frame = sg.Frame('Maximum hazard', hazard_frame_data)
+hazard_frame = sg.Frame('Maximum hazard', hazard_frame_data, border_width=0)
 
 # MISC CHECKBOXES
 misc_frame_data = [
     #[sg.Checkbox('Exclude selected planet types in search', default=False, k='exclusive_types_checkbox',tooltip='Instead of searching for the selected types, search for all types except for the ones selected.')],
-    [sg.Checkbox('Exclusive planet type search mode', default=False, k='exclusive_types_checkbox', tooltip='Instead of looking for planets of selected type, look for planets whose type does not match any of the selected', enable_events=True)],
+    [sg.Checkbox('Exclusive planet type search mode       ', default=False, k='exclusive_types_checkbox', tooltip='Instead of looking for planets of selected type, look for planets whose type does not match any of the selected', enable_events=True)],
     [sg.Checkbox('Exclusive condition search mode', default=False, k='exclusive_cond_checkbox', tooltip='Instead of looking for planets with the selected conditions, look for planets without any of the selected conditions', enable_events=True)],
 ]
-misc_frame = sg.Frame('Miscellaneous', misc_frame_data)
+misc_frame = sg.Frame('Miscellaneous', misc_frame_data, border_width=0)
 
 # REQUIREMENTS PANEL LAYOUT (left half of main window)
 planet_req_col_1 = sg.Column([
     [planet_type_frame],
     [planet_conditions_frame]
 ])
+
 planet_req_col_2 = sg.Column([
     [resources_frame],
     [hazard_frame],
@@ -152,24 +172,25 @@ planet_req_frame_data = [
     [sg.Button('Add requirement', pad=(9,0), size=(30,1), k='add_planet_req_button', disabled=True), sg.Button('Remove selected', pad=(9,0), size=(30,1), k='remove_planet_req_button', disabled=True)],
     [planet_req_col_1, planet_req_col_2]
 ]
-planet_req_frame = sg.Frame('Planet requirements', planet_req_frame_data)
+planet_req_frame = sg.Frame('System planet requirements', planet_req_frame_data, border_width=1)
 
 
 '''
 ======================================================== Search results panel ========================================================
 '''
+system_list_frame_text = 'Search results'
 # FOUND SYSTEMS LIST
 system_list_frame_data = [
-    [sg.Listbox(values=[], size=(70,10), enable_events=True, k='systems_listbox', right_click_menu=['', ['Show on sector map']])],
-    [sg.Button('Show on map', k='show_on_map_button')]
+    [sg.Listbox(values=[], size=(70,11), enable_events=True, k='systems_listbox', right_click_menu=['', ['Show on sector map']])],
+    [sg.Button('Save system info', k='save_system_info_button'), sg.Button('Show on map', k='show_on_map_button')]
 ]
-system_list_frame = sg.Frame('Search results', system_list_frame_data, element_justification='right')
+system_list_frame = sg.Frame('Search results', system_list_frame_data, element_justification='right', k='system_list_frame', border_width=1)
 
 # SYSTEM DETAIL DESCRIPTION
 system_details_frame_data = [
-    [sg.Column([[sg.Text(size=(50,100), k='system_details_text', font='Courier 10')]], size=(492,500), scrollable=True, k='system_details_col')], #540
+    [sg.Column([[sg.Text(size=(50,200), k='system_details_text', font='Courier 10')]], size=(492,449), scrollable=True, k='system_details_col', vertical_scroll_only=True)], #540
 ]
-system_details_frame = sg.Frame('System Details', system_details_frame_data)
+system_details_frame = sg.Frame('System details', system_details_frame_data, border_width=1)
 
 '''
 ========================================================= Main layout setup =========================================================
@@ -177,7 +198,7 @@ system_details_frame = sg.Frame('System Details', system_details_frame_data)
 req_col = sg.Column([
     [system_req_frame],
     [planet_req_frame],
-    [sg.Button('Search for systems', size=(69,2), button_color=('white','#8B423F'), k='search_systems_button', disabled=True)]
+    [sg.Button('Search for systems', size=(69,2), k='search_systems_button', disabled=True, button_color=('#ffffff', '#6B3333'), pad=(3, 10))] # button_color=('white','#8B423F')
 ])
 results_col = sg.Column([
     [system_list_frame],
@@ -185,7 +206,7 @@ results_col = sg.Column([
 ])
 layout = [
     [save_import_frame],
-    [req_col, sg.VerticalSeparator(), results_col]
+    [req_col, results_col]
 ]
 main_win = sg.Window('Sector scouter', layout, finalize=True)
 disable_planet_req_ui(main_win, disable=True)
@@ -301,8 +322,8 @@ req_update_keys = [
 
 def reset_planet_req_ui(main_win):
     # reset planet req panel slider/dropdown/selection values to default
-    main_win['planet_types_listbox'].SetValue([None])
-    main_win['planet_cond_listbox'].SetValue([None])
+    main_win['planet_types_listbox'].SetValue([])
+    main_win['planet_cond_listbox'].SetValue([])
     main_win['hazard_slider'].update(value=default_hazard)
     main_win['ore_dropdown'].update(set_to_index=0)
     main_win['rare_ore_dropdown'].update(set_to_index=0)
@@ -313,7 +334,89 @@ def reset_planet_req_ui(main_win):
     main_win['exclusive_types_checkbox'].update(value=False)
     main_win['exclusive_cond_checkbox'].update(value=False)
     
-#def pad_to_length(string, ):    xD 
+def append_pad_to_length(string, length):
+    string = str(string)
+    if length > len(string):
+        return string + ' '*(length-len(string))
+    else:
+        raise Exception(f'Invalid padding length for string: {string}')
+
+def get_detail_string(sys):
+    detail_string = f'{sys.name}\n'
+    detail_string += f'System coordinates: ({sys.loc[0]:0.1f}ly, {sys.loc[1]:0.1f}ly)\n' 
+    detail_string += f'Distance from center: {sys.dist:0.1f}ly\n'
+    if sys.stars:
+        detail_string += f'Stars: {", ".join([star.type.name for star in sys.stars])}\n'
+    if sys.planets:
+        detail_string += f'\nContains {len(sys.planets)} planets:\n'
+    # whitespace padding is the longest condition string length + 5
+    padding = len(sorted(sector.all_conditions, key=lambda cond: len(cond.name), reverse=True)[0].name) + 5
+    for i, planet in enumerate(sorted(sys.planets, key=lambda p: p.hazard)):
+        detail_string += f'\n{i+1}. {planet}:\n'
+        if planet.resources:
+            if planet.hazard_conditions:
+                detail_string += '├───Resources:\n'
+            else:
+                detail_string += '└───Resources:\n'
+            first_iter = True
+            res_string = ''
+            for res in reversed(planet.resources):
+                res_name = res.name
+                res_val_str = str(res.resource_level)
+                if float(res_val_str) > 0:
+                    res_val_str = '+' + res_val_str
+                elif float(res_val_str) == 0:
+                    res_val_str = ' ' + res_val_str
+                if first_iter:
+                    res_string = '   ' + f'└───{append_pad_to_length(res_name, padding)} {res_val_str}\n'
+                    first_iter = False
+                else:
+                    res_string = '   ' + f'├───{append_pad_to_length(res_name, padding)} {res_val_str}\n' + res_string
+                if planet.hazard_conditions:
+                    res_string = '│' + res_string
+                else:
+                    res_string = ' ' + res_string
+            detail_string += res_string
+
+        if planet.hazard_conditions:
+            if planet.other_conditions:
+                detail_string += '├───Hazard conditions:\n'
+            else:
+                detail_string += '└───Hazard conditions:\n'
+            first_iter = True
+            haz_string = ''
+            for haz_cond in reversed(planet.hazard_conditions):
+                haz_cond_name = haz_cond.name
+                haz_val = int(100*haz_cond.hazard)
+                haz_val_str = str(haz_val)
+                if haz_val > 0:
+                    haz_val_str = '+' + haz_val_str
+                haz_val_str += '%'
+                if first_iter:
+                    haz_string = '   ' + f'└───{append_pad_to_length(haz_cond_name, padding)} {haz_val_str}\n'
+                    first_iter = False
+                else:
+                    haz_string = '   ' + f'├───{append_pad_to_length(haz_cond_name, padding)} {haz_val_str}\n' + haz_string
+                if planet.other_conditions:
+                    haz_string = '│' + haz_string
+                else:
+                    haz_string = ' ' + haz_string
+            detail_string += haz_string
+
+        if planet.other_conditions:
+            detail_string += '└───Other conditions:\n'
+            first_iter = True
+            other_string = ''
+            for other_cond in reversed(planet.other_conditions):
+                other_cond_name = other_cond.name
+                if first_iter:
+                    other_string = '    ' + f'└───{append_pad_to_length(other_cond_name, padding)}\n'
+                    first_iter = False
+                else:
+                    other_string = '    ' + f'├───{append_pad_to_length(other_cond_name, padding)}\n' + other_string
+            detail_string += other_string
+
+    return detail_string
 
 while True:
     win, event, values = sg.read_all_windows()
@@ -350,7 +453,7 @@ while True:
         try:
             sector.load_from_xml(path)
             # enabling so that the list gets visually updated, then disabling after
-            main_win['planet_types_listbox'].update(values=sorted(list(sector.planet_types), key=lambda planet_type: planet_type.removeprefix('US_')), disabled=False)
+            main_win['planet_types_listbox'].update(values=sorted(list(sector.planet_types)), disabled=False)
             main_win['planet_types_listbox'].update(disabled=True)
             main_win['planet_cond_listbox'].update(values=sorted(list(sector.all_conditions)), disabled=False)
             main_win['planet_cond_listbox'].update(disabled=True)
@@ -358,6 +461,8 @@ while True:
             main_win['max_dist_slider'].update(value=sector.max_system_dist)
             main_win['min_planet_num_slider'].update(range=(0, sector.max_system_planet_num))
             main_win['min_planet_num_slider'].update(value=0)
+            main_win['theme_dropdown'].update(values=[None] + sorted(list(sector.all_themes)), set_to_index=0, disabled=False, readonly=True)
+            main_win['unclaimed_systems_checkbox'].update(disabled=False)
 
             main_win['hazard_slider'].update(range=[100*hazard for hazard in sector.get_hazard_range()])
             default_hazard = 100*sector.get_hazard_range()[1]
@@ -368,7 +473,7 @@ while True:
             main_win['add_planet_req_button'].update(disabled=False)
             main_win['remove_planet_req_button'].update(disabled=False)
             main_win['search_systems_button'].update(disabled=False)
-        except FileNotFoundError:
+        except OSError:
             sg.popup('Invalid path')
         import_progress_win.close()
     
@@ -400,11 +505,11 @@ while True:
             pass
 
     elif event == 'Deselect all types':
-        main_win['planet_types_listbox'].SetValue([None])
+        main_win['planet_types_listbox'].SetValue([])
         update_req_list_from_ui(main_win, values)
 
     elif event == 'Deselect all conditions':
-        main_win['planet_cond_listbox'].SetValue([None])
+        main_win['planet_cond_listbox'].SetValue([])
         update_req_list_from_ui(main_win, values)
 
     # pressing add new planet req handler
@@ -422,10 +527,12 @@ while True:
         system_requirement = lib.StarSystemReq(
             max_distance=values['max_dist_slider'], 
             min_planet_num=values['min_planet_num_slider'], 
-            planet_reqs=main_win['planet_req_listbox'].get_list_values()
-            )
-
+            planet_reqs=main_win['planet_req_listbox'].get_list_values(),
+            desired_theme=values['theme_dropdown'],
+            must_be_unclaimed=values['unclaimed_systems_checkbox']
+        )
         matching_systems = sector.get_matching_systems(system_requirement)
+        main_win['system_list_frame'].update(value=f'{system_list_frame_text} ({len(matching_systems)})')
         main_win['systems_listbox'].update(values=sorted(matching_systems, key=lambda system: system.dist))
         main_win['system_details_text'].update(value='')
 
@@ -433,90 +540,14 @@ while True:
     elif event == 'systems_listbox':
         if values['systems_listbox']:
             sys = values['systems_listbox'][0]
-            detail_string = f'System coordinates: [{sys.loc[0]:0.1f}, {sys.loc[1]:0.1f}]\n' 
-            detail_string += f'Distance from center: {sys.dist:0.1f}ly\n'
-            detail_string += f'Stars: {", ".join(sys.stars)}\n\n'
-            detail_string += f'Contains {len(sys.planets)} planets:\n'
-            tab = '        '
-            for i, planet in enumerate(sorted(sys.planets, key=lambda p: p.hazard)):
-
-                detail_string += f'\n┌[{i+1}. {planet}]:\n'
-
-                if planet.resources:
-                    if planet.hazard_conditions:
-                        detail_string += '├─┬[Resources]:\n'
-                    else:
-                        detail_string += '└─┬[Resources]:\n'
-                    first_iter = True
-                    res_string = ''
-                    for res in reversed(planet.resources):
-                        if first_iter:
-                            res_string = ' ' + f'└──{res}\n'
-                            first_iter = False
-                        else:
-                            res_string = ' ' + f'├──{res}\n' + res_string
-                        if planet.hazard_conditions:
-                            res_string = '│' + res_string
-                        else:
-                            res_string = ' ' + res_string
-                    detail_string += res_string
-
-                if planet.hazard_conditions:
-                    if planet.other_conditions:
-                        detail_string += '├─┬[Hazard conditions]:\n'
-                    else:
-                        detail_string += '└─┬[Hazard conditions]:\n'
-                    first_iter = True
-                    haz_string = ''
-                    for haz_cond in reversed(planet.hazard_conditions):
-                        if first_iter:
-                            haz_string = ' ' + f'└──{haz_cond}\n'
-                            first_iter = False
-                        else:
-                            haz_string = ' ' + f'├──{haz_cond}\n' + haz_string
-                        if planet.other_conditions:
-                            haz_string = '│' + haz_string
-                        else:
-                            haz_string = ' ' + haz_string
-                    detail_string += haz_string
-
-                if planet.other_conditions:
-                    detail_string += '└─┬[Other conditions]:\n'
-                    first_iter = True
-                    other_string = ''
-                    for other_cond in reversed(planet.other_conditions):
-                        if first_iter:
-                            other_string = '  ' + f'└──{other_cond}\n'
-                            first_iter = False
-                        else:
-                            other_string = '  ' + f'├──{other_cond}\n' + other_string
-                    detail_string += other_string
-
-                #if planet.resources:
-                #    detail_string += tab + '[Resources]:\n'
-                #    for res in planet.resources:
-                #        res_val = lib.RESOURCE_MAP[res]
-                #        detail_string += tab*2 + f'{res} ('
-                #        if res_val > 0:
-                #            detail_string += '+'
-                #        detail_string += f'{res_val})\n'
-
-                #if planet.hazard_conditions:
-                #    detail_string += tab + '[Hazard conditions]:\n'
-                #    for cond in planet.hazard_conditions:
-                #        haz_val = int(float(lib.HAZARD_COND_MAP[cond])*100)
-                #        detail_string += tab*2 + f'{cond} ('
-                #        if haz_val > 0:
-                #            detail_string += '+'
-                #        detail_string += f'{haz_val}%)\n'
-
-                #if planet.other_conditions:
-                #    detail_string += tab + '[Other conditions]:\n'
-                #    for cond in planet.other_conditions:
-                #        detail_string += tab*2 + f'{cond}\n'
+            detail_string = get_detail_string(sys)
         else:
             detail_string = ''
-        main_win['system_details_text'].update(value=detail_string)
+        details_height = len(detail_string.split('\n'))
+        #print(main_win['system_details_text'].get_size(), details_height*3)
+        #main_win['system_details_text'].set_size(size=(None, details_height*3))
+        #print(main_win['system_details_text'].get_size())
+        main_win['system_details_text'].update(value=detail_string)  
         main_win['system_details_col'].Widget.canvas.yview_moveto(0.0)
 
     # mouse panning in the starmap handlers
@@ -534,6 +565,16 @@ while True:
             drag_offset_x = drag_curr_x - drag_start_x
             drag_offset_y = drag_curr_y - drag_start_y
             starmap_win['starmap_graph'].move(drag_offset_x, drag_offset_y)
+    
+    elif event == 'save_system_info_button':
+        
+        if values['systems_listbox']:
+            sys = values['systems_listbox'][0]
+            filename = f'{sector.name} {sys.name}.txt'
+            detail_string = get_detail_string(sys)
+            with open(filename, 'w', encoding="utf-8") as output:
+                output.write(f'{sys.name}\n{sector.seed}\n\n' + detail_string + '\n' + 50*'=' + '\n')
+            sg.popup(f'Saved {sys.name} from {sector.name} to file')
     else:
         print(event)
 
@@ -541,10 +582,18 @@ main_win.close()
 
 
 '''
+Todo:
+
 Mutually exclusive planet reqs checkbox
 
 Stable locs/Comm relays/Nav buoys/Sensor arrays slider
 
 Only unclaimed systems checkbox
+
+Check missing planets like in galatia, then look for them in the xml and find out why they ain't gettin picked up by the script
+
+Sorting options for search results/system details?
+
+
 
 '''

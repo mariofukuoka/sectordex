@@ -20,7 +20,7 @@ def set_hazard_cond_map(starsector_dir_path):
             reader = csv.DictReader(csv_file)
             for row in reader:
                 if row['id'] and row['hazard']:
-                    HAZARD_COND_MAP[row['id']] = row['hazard']
+                    HAZARD_COND_MAP[row['id']] = float(row['hazard'])
 
 COND_ID_TO_NAME_MAP = {}
 
@@ -61,8 +61,8 @@ class Planet:
         self.inhabited = inhabited
         self.resources = [cond for cond in conditions if cond.resource_level is not None]
         self.conditions = [cond for cond in conditions if cond.resource_level is None]
-        self.hazard_conditions = [cond for cond in self.conditions if cond.hazard is not None]
-        self.other_conditions = [cond for cond in self.conditions if cond.hazard is None]
+        self.hazard_conditions = [cond for cond in self.conditions if cond.hazard]
+        self.other_conditions = [cond for cond in self.conditions if not cond.hazard]
         self.hazard = 1 + sum([float(cond.hazard) for cond in self.hazard_conditions])
 
     def __repr__(self):
@@ -269,6 +269,11 @@ class Sector:
         # create dict mapping system id (int) to each system (StarSystem)
         id_system_map = {}
         for system_node in system_nodes:
+            #print([node.tag for node in system_node])
+            try:
+                print('\t', [node.tag for node in system_node.find('o').find('saved')])
+            except:
+                print('\texcepted')
             system = self.get_system_from_xml_node(campaign_xml_root, system_node)
             id_system_map[system.id] = system
         if missing_system_ids := [id for id in system_ids if id not in id_system_map]:
@@ -302,10 +307,7 @@ class Sector:
         else:
             loc_px = campaign_xml_root.find(f".//locInHyper[@z='{location_node.get('ref')}']").text.split('|')          
         loc_ly = [ly_per_px*float(coord) for coord in loc_px]
-        tags = system_node.find('tags')
-        themes = []
-        for tag in tags:
-            themes.append(tag.text)
+        themes = [tag.text for tag in system_node.find('tags')]
         return StarSystem(sys_id, name, loc_ly, themes)
 
     def assign_planets_to_systems(self, campaign_xml_root, id_system_map):
@@ -340,27 +342,23 @@ class Sector:
             if (cond_list_node := market_node.find('cond')) is not None:
                 for node in cond_list_node:
                     cond_id = node.text
+                    hazard = None
+                    res_level = None
                     if cond_id in HAZARD_COND_MAP:
                         hazard = HAZARD_COND_MAP[cond_id]
-                    else:
-                        hazard = None
                     if cond_id in RESOURCE_MAP:
                         res_level = RESOURCE_MAP[cond_id]
-                    else:
-                        res_level = None
                     conditions.append(Condition(cond_id, COND_ID_TO_NAME_MAP[cond_id], hazard, res_level))
             # otherwise it stores conditions in the 'i' attrib of tags inside a <conditions> tag
             else:
                 for node in market_node.find('conditions'):
                     if cond_id := node.get('i'):
+                        hazard = None
+                        res_level = None
                         if cond_id in HAZARD_COND_MAP:
                             hazard = HAZARD_COND_MAP[cond_id]
-                        else:
-                            hazard = None
                         if cond_id in RESOURCE_MAP:
                             res_level = RESOURCE_MAP[cond_id]
-                        else:
-                            res_level = None
                         conditions.append(Condition(cond_id, COND_ID_TO_NAME_MAP[cond_id], hazard, res_level))
             is_inhabited = any([condition.id.startswith('population') for condition in conditions])
             return Planet(id, name, type, conditions, system_id, is_inhabited)
